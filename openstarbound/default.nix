@@ -55,6 +55,14 @@ pkgs.clangStdenv.mkDerivation {
   postPatch = ''
     cp ${./patches/CMakeLists.txt} CMakeLists.txt 2>/dev/null || true
     mkdir -p dist || true
+
+    substituteInPlace core/StarFormat.hpp \
+	   --replace-fail 'fmt::format(fmt, args...)' \
+                     'fmt::format(fmt::runtime(fmt), args...)' \
+      --replace-fail 'format(std::cout, fmt, args...)' \
+                     'format(std::cout, fmt::runtime(fmt), args...)' \
+      --replace-fail 'format(std::cerr, fmt, args...)' \
+                     'format(std::cerr, fmt::runtime(fmt), args...)'
   '';
 
   enableParallelBuilding = true;
