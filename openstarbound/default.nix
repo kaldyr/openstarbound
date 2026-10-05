@@ -57,12 +57,18 @@ pkgs.clangStdenv.mkDerivation {
     mkdir -p dist || true
 
     substituteInPlace core/StarFormat.hpp \
-	   --replace-fail 'fmt::format(fmt, args...)' \
-                     'fmt::format(fmt::runtime(fmt), args...)' \
-      --replace-fail 'format(std::cout, fmt, args...)' \
-                     'format(std::cout, fmt::runtime(fmt), args...)' \
-      --replace-fail 'format(std::cerr, fmt, args...)' \
-                     'format(std::cerr, fmt::runtime(fmt), args...)'
+      --replace-fail \
+        'std::string strf(fmt::format_string<T...> fmt, T&&... args)' \
+        'std::string strf(fmt::format_string<T...> fmt, T const&... args)' \
+      --replace-fail \
+        'void format(std::ostream& out, fmt::format_string<T...> fmt, T&&... args)' \
+        'void format(std::ostream& out, fmt::format_string<T...> fmt, T const&... args)' \
+      --replace-fail \
+        'format(std::cout, fmt, args...)' \
+        'format(std::cout, fmt::runtime(fmt), args...)' \
+      --replace-fail \
+        'format(std::cerr, fmt, args...)' \
+        'format(std::cerr, fmt::runtime(fmt), args...)'
   '';
 
   enableParallelBuilding = true;
