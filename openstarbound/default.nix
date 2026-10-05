@@ -56,6 +56,11 @@ pkgs.clangStdenv.mkDerivation {
     cp ${./patches/CMakeLists.txt} CMakeLists.txt 2>/dev/null || true
     mkdir -p dist || true
 
+    substituteInPlace core/StarException.hpp \
+      --replace-fail \
+        'std::string strf(fmt::format_string<T...> fmt, T&&... args);' \
+        'std::string strf(fmt::format_string<T...> fmt, T const&... args);'
+
     substituteInPlace core/StarFormat.hpp \
       --replace-fail \
         'std::string strf(fmt::format_string<T...> fmt, T&&... args)' \
