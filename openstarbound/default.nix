@@ -56,24 +56,16 @@ pkgs.clangStdenv.mkDerivation {
     cp ${./patches/CMakeLists.txt} CMakeLists.txt 2>/dev/null || true
     mkdir -p dist || true
 
-    substituteInPlace core/StarException.hpp \
-      --replace-fail \
-        'std::string strf(fmt::format_string<T...> fmt, T&&... args);' \
-        'std::string strf(fmt::format_string<T...> fmt, T const&... args);'
-
     substituteInPlace core/StarFormat.hpp \
       --replace-fail \
-        'std::string strf(fmt::format_string<T...> fmt, T&&... args)' \
-        'std::string strf(fmt::format_string<T...> fmt, T const&... args)' \
+        'try { return fmt::format(fmt, args...); }' \
+        'try { return fmt::vformat(fmt, fmt::make_format_args(args...)); }' \
       --replace-fail \
-        'void format(std::ostream& out, fmt::format_string<T...> fmt, T&&... args)' \
-        'void format(std::ostream& out, fmt::format_string<T...> fmt, T const&... args)' \
+        'format(std::cout, fmt, args...);' \
+        'std::cout << fmt::vformat(fmt, fmt::make_format_args(args...));' \
       --replace-fail \
-        'format(std::cout, fmt, args...)' \
-        'format(std::cout, fmt::runtime(fmt), args...)' \
-      --replace-fail \
-        'format(std::cerr, fmt, args...)' \
-        'format(std::cerr, fmt::runtime(fmt), args...)'
+        'format(std::cerr, fmt, args...);' \
+        'std::cerr << fmt::vformat(fmt, fmt::make_format_args(args...));'
   '';
 
   enableParallelBuilding = true;
