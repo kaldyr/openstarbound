@@ -19,12 +19,12 @@ endif()
 
 if(CMAKE_CXX_COMPILER_LAUNCHER MATCHES "ccache")
   set(STAR_CCACHE TRUE)
-  set(STAR_PRECOMPILED_HEADERS FALSE)
 else()
   set(STAR_CCACHE FALSE)
-  set(STAR_PRECOMPILED_HEADERS TRUE)
   message(STATUS "Not using CCache")
 endif()
+
+set(STAR_PRECOMPILED_HEADERS FALSE)
 
 project(starbound)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/../cmake)

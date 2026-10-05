@@ -52,20 +52,11 @@ pkgs.clangStdenv.mkDerivation {
     (lib.cmakeBool "STAR_USE_JEMALLOC" true)
   ];
 
+  patches = [ ./patches/compat-clang21.patch ];
+
   postPatch = ''
     cp ${./patches/CMakeLists.txt} CMakeLists.txt 2>/dev/null || true
     mkdir -p dist || true
-
-    substituteInPlace core/StarFormat.hpp \
-      --replace-fail \
-        'try { return fmt::format(fmt, args...); }' \
-        'try { return fmt::vformat(fmt, fmt::make_format_args(args...)); }' \
-      --replace-fail \
-        'format(std::cout, fmt, args...);' \
-        'std::cout << fmt::vformat(fmt, fmt::make_format_args(args...));' \
-      --replace-fail \
-        'format(std::cerr, fmt, args...);' \
-        'std::cerr << fmt::vformat(fmt, fmt::make_format_args(args...));'
   '';
 
   enableParallelBuilding = true;

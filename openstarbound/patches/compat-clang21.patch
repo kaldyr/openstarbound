@@ -1,0 +1,256 @@
+diff '--color=auto' -ruN a/client/StarClientApplication.cpp b/client/StarClientApplication.cpp
+--- a/client/StarClientApplication.cpp	2026-10-04 20:45:51.353878330 -0700
++++ b/client/StarClientApplication.cpp	2026-10-05 02:17:31.923125548 -0700
+@@ -414,14 +414,14 @@
+       renderer->switchEffectConfig("world");
+       auto clientStart = totalStart;
+       worldClient->render(m_renderData, TilePainter::BorderTileSize);
+-      LogMap::set("client_render_world_client", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - clientStart));
++      LogMap::set("client_render_world_client", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - clientStart));
+ 
+       auto paintStart = Time::monotonicMicroseconds();
+       m_worldPainter->render(m_renderData, [&]() -> bool {
+         return worldClient->waitForLighting(&m_renderData);
+       });
+-      LogMap::set("client_render_world_painter", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - paintStart));
+-      LogMap::set("client_render_world_total", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - totalStart));
++      LogMap::set("client_render_world_painter", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - paintStart));
++      LogMap::set("client_render_world_total", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - totalStart));
+       
+       auto size = Vec2F(renderer->screenSize());
+       auto quad = renderFlatRect(RectF::withSize(size / -2, size), Vec4B::filled(0), 0.0f);
+@@ -441,7 +441,7 @@
+     m_mainInterface->renderInWorldElements();
+     m_mainInterface->render();
+     m_cinematicOverlay->render();
+-    LogMap::set("client_render_interface", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
++    LogMap::set("client_render_interface", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
+   }
+ 
+   if (!m_errorScreen->accepted())
+@@ -1154,7 +1154,9 @@
+           auto signature = Curve25519::sign(voiceData.ptr(), voiceData.size());
+           std::string_view signatureView((char*)signature.data(), signature.size());
+           std::string_view audioDataView(voiceData.ptr(), voiceData.size());
+-          auto broadcast = strf("data\0voice\0{}{}"s, signatureView, audioDataView);
++          auto broadcast = fmt::vformat(
++            "data\0voice\0{}{}"s,
++            fmt::make_format_args(signatureView, audioDataView));
+           worldClient->sendSecretBroadcast(broadcast, true, false); // Already compressed by Opus.
+         }
+         if (auto mainPlayer = m_universeClient->mainPlayer()) {
+diff '--color=auto' -ruN a/core/StarException.hpp b/core/StarException.hpp
+--- a/core/StarException.hpp	2026-10-04 20:45:51.357766810 -0700
++++ b/core/StarException.hpp	2026-10-05 01:35:27.067028431 -0700
+@@ -14,7 +14,7 @@
+ class StarException : public std::exception {
+ public:
+   template <typename... Args>
+-  static StarException format(fmt::format_string<Args...> fmt, Args const&... args);
++  static StarException format(fmt::format_string<Args...> fmt, Args&&... args);
+ 
+   StarException() noexcept;
+   virtual ~StarException() noexcept;
+@@ -78,8 +78,8 @@
+   class ClassName : public BaseName {                                                                                             \
+   public:                                                                                                                         \
+     template <typename... Args>                                                                                                   \
+-    static ClassName format(fmt::format_string<Args...> fmt, Args const&... args) {                                               \
+-      return ClassName(strf(fmt, args...));                                                                                       \
++    static ClassName format(fmt::format_string<Args...> fmt, Args&&... args) {                                                    \
++      return ClassName(strf(fmt, std::forward<Args>(args)...));                                                                   \
+     }                                                                                                                             \
+     ClassName() : BaseName(#ClassName, std::string()) {}                                                                          \
+     explicit ClassName(std::string message, bool genStackTrace = true) : BaseName(#ClassName, std::move(message), genStackTrace) {} \
+@@ -97,8 +97,8 @@
+ STAR_EXCEPTION(MemoryException, StarException);
+ 
+ template <typename... Args>
+-StarException StarException::format(fmt::format_string<Args...> fmt, Args const&... args) {
+-  return StarException(strf(fmt, args...));
++StarException StarException::format(fmt::format_string<Args...> fmt, Args&&... args) {
++  return StarException(strf(fmt, std::forward<Args>(args)...));
+ }
+ 
+ }
+diff '--color=auto' -ruN a/core/StarFormat.hpp b/core/StarFormat.hpp
+--- a/core/StarFormat.hpp	2026-10-04 20:45:51.358457341 -0700
++++ b/core/StarFormat.hpp	2026-10-04 20:58:05.862263423 -0700
+@@ -14,7 +14,7 @@
+ 
+ template <typename... T>
+ std::string strf(fmt::format_string<T...> fmt, T&&... args) {
+-  try { return fmt::format(fmt, args...); }
++  try { return fmt::vformat(fmt, fmt::make_format_args(args...)); }
+   catch (std::exception const& e) {
+     throw FormatException(strf("Exception thrown during string format: {}", e.what()));
+   }
+@@ -28,14 +28,14 @@
+ // Automatically flushes, use format to avoid flushing.
+ template <typename... Args>
+ void coutf(char const* fmt, Args const&... args) {
+-  format(std::cout, fmt, args...);
++  std::cout << fmt::vformat(fmt, fmt::make_format_args(args...));
+   std::cout.flush();
+ }
+ 
+ // Automatically flushes, use format to avoid flushing.
+ template <typename... Args>
+ void cerrf(char const* fmt, Args const&... args) {
+-  format(std::cerr, fmt, args...);
++  std::cerr << fmt::vformat(fmt, fmt::make_format_args(args...));
+   std::cerr.flush();
+ }
+ 
+diff '--color=auto' -ruN a/core/StarLogging.hpp b/core/StarLogging.hpp
+--- a/core/StarLogging.hpp	2026-10-04 20:45:51.360409059 -0700
++++ b/core/StarLogging.hpp	2026-10-05 02:11:33.537263299 -0700
+@@ -160,7 +160,7 @@
+ template <typename... Args>
+ void Logger::logf(LogLevel level, char const* msg, Args const&... args) {
+   if (loggable(level)) {
+-    std::string output = strf(msg, args...);
++    std::string output = fmt::vformat(msg, fmt::make_format_args(args...));
+     MutexLocker locker(s_mutex);
+     for (auto const& l : s_sinks) {
+       if (l->level() <= level) {
+diff '--color=auto' -ruN a/frontend/StarChat.cpp b/frontend/StarChat.cpp
+--- a/frontend/StarChat.cpp	2026-10-04 20:45:51.388052256 -0700
++++ b/frontend/StarChat.cpp	2026-10-05 02:27:26.532326158 -0700
+@@ -229,7 +229,11 @@
+     guiContext.setTextStyle(m_chatTextStyle);
+     StringList lines;
+     if (message.fromNick != "" && message.portrait == "")
+-      lines = guiContext.wrapInterfaceText(strf(m_chatFormatString.utf8Ptr(), message.fromNick, message.text), wrapWidth);
++      lines = guiContext.wrapInterfaceText(
++        fmt::vformat(
++          m_chatFormatString.utf8Ptr(),
++          fmt::make_format_args(message.fromNick, message.text)),
++        wrapWidth);
+     else
+       lines = guiContext.wrapInterfaceText(message.text, wrapWidth);
+ 
+diff '--color=auto' -ruN a/frontend/StarMainInterface.cpp b/frontend/StarMainInterface.cpp
+--- a/frontend/StarMainInterface.cpp	2026-10-04 20:45:51.390064944 -0700
++++ b/frontend/StarMainInterface.cpp	2026-10-05 02:25:56.272228750 -0700
+@@ -742,7 +742,9 @@
+ 
+         if (!worldName.empty()) {
+           m_planetText->parent()->setPosition(Vec2I(Vec2F(m_config->planetNameOffset) * (2.f / interfaceScale())));
+-          m_planetText->setText(strf(m_config->planetNameFormatString.utf8Ptr(), worldName));
++          m_planetText->setText(fmt::vformat(
++            m_config->planetNameFormatString.utf8Ptr(),
++            fmt::make_format_args(worldName)));
+           m_paneManager.displayRegisteredPane(MainInterfacePanes::PlanetText);
+         }
+       }
+diff '--color=auto' -ruN a/game/StarCommandProcessor.cpp b/game/StarCommandProcessor.cpp
+--- a/game/StarCommandProcessor.cpp	2026-10-04 20:45:51.394758287 -0700
++++ b/game/StarCommandProcessor.cpp	2026-10-05 02:38:59.676681415 -0700
+@@ -73,20 +73,35 @@
+     };
+ 
+   String basicHelpFormat = assets->json("/help.config:basicHelpText").toString();
+-  res = res + strf(basicHelpFormat.utf8Ptr(), commandDescriptions(basicCommands));
++  auto basicDescriptions = commandDescriptions(basicCommands);
++  res = res + fmt::vformat(
++    basicHelpFormat.utf8Ptr(),
++    fmt::make_format_args(basicDescriptions));
+ 
+   String openSbHelpFormat = assets->json("/help.config:openSbHelpText").toString();
+-  res = res + "\n" + strf(openSbHelpFormat.utf8Ptr(), commandDescriptions(openSbCommands));
++  auto openSbDescriptions = commandDescriptions(openSbCommands);
++  res = res + "\n" + fmt::vformat(
++    openSbHelpFormat.utf8Ptr(),
++    fmt::make_format_args(openSbDescriptions));
+ 
+   if (!adminCheck(connectionId, "")) {
+     String adminHelpFormat = assets->json("/help.config:adminHelpText").toString();
+-    res = res + "\n" + strf(adminHelpFormat.utf8Ptr(), commandDescriptions(adminCommands));
++    auto adminDescriptions = commandDescriptions(adminCommands);
++    res = res + "\n" + fmt::vformat(
++      adminHelpFormat.utf8Ptr(),
++      fmt::make_format_args(adminDescriptions));
+ 
+     String debugHelpFormat = assets->json("/help.config:debugHelpText").toString();
+-    res = res + "\n" + strf(debugHelpFormat.utf8Ptr(), commandDescriptions(debugCommands));
++    auto debugDescriptions = commandDescriptions(debugCommands);
++    res = res + "\n" + fmt::vformat(
++      debugHelpFormat.utf8Ptr(),
++      fmt::make_format_args(debugDescriptions));
+ 
+     String openSbDebugHelpFormat = assets->json("/help.config:openSbDebugHelpText").toString();
+-    res = res + "\n" + strf(openSbDebugHelpFormat.utf8Ptr(), commandDescriptions(openSbDebugCommands));
++    auto openSbDebugDescriptions = commandDescriptions(openSbDebugCommands);
++    res = res + "\n" + fmt::vformat(
++      openSbDebugHelpFormat.utf8Ptr(),
++      fmt::make_format_args(openSbDebugDescriptions));
+   }
+ 
+   res = res + "\n" + basicCommands.getString("help");
+diff '--color=auto' -ruN a/game/StarPlatformerAStarTypes.hpp b/game/StarPlatformerAStarTypes.hpp
+--- a/game/StarPlatformerAStarTypes.hpp	2026-10-04 20:45:51.401670142 -0700
++++ b/game/StarPlatformerAStarTypes.hpp	2026-10-05 01:42:06.205971837 -0700
+@@ -97,7 +97,8 @@
+ }
+ 
+ inline std::ostream& operator<<(std::ostream& os, Node const& node) {
+-  return os << strf("Node{position = {}, velocity = {}}", node.position, node.velocity);
++  return os << "Node{position = " << node.position
++            << ", velocity = " << node.velocity << "}";
+ }
+ 
+ inline std::ostream& operator<<(std::ostream& os, Action action) {
+@@ -105,12 +106,11 @@
+ }
+ 
+ inline std::ostream& operator<<(std::ostream& os, Edge const& edge) {
+-  return os << strf("Edge{cost = %f, action = {}, jumpVelocity = {}, source = {}, target = {}}",
+-          edge.cost,
+-          edge.action,
+-          edge.jumpVelocity,
+-          edge.source,
+-          edge.target);
++  return os << "Edge{cost = " << edge.cost
++            << ", action = " << edge.action
++            << ", jumpVelocity = " << edge.jumpVelocity
++            << ", source = " << edge.source
++            << ", target = " << edge.target << "}";
+ }
+ 
+ inline bool Node::operator<(Node const& other) const {
+diff '--color=auto' -ruN a/game/StarUniverseClient.cpp b/game/StarUniverseClient.cpp
+--- a/game/StarUniverseClient.cpp	2026-10-04 20:45:51.407606771 -0700
++++ b/game/StarUniverseClient.cpp	2026-10-05 02:21:24.840293421 -0700
+@@ -291,7 +291,9 @@
+   for (auto& result : m_teamClient->pullInviteResults()) {
+     String printout;
+     if (auto pair = result.ptr<std::pair<String, bool>>()) {
+-      printout = strf(pair->second ? "Invited {}" : "Couldn't find anyone to invite named {}", pair->first);
++      printout = fmt::vformat(
++        pair->second ? "Invited {}" : "Couldn't find anyone to invite named {}",
++        fmt::make_format_args(pair->first));
+     } else if (auto invited = result.ptr<StringList>()) {
+       printout = "";
+       for (size_t i = 0; i != invited->size(); ++i) {
+diff '--color=auto' -ruN a/game/StarWorldClient.cpp b/game/StarWorldClient.cpp
+--- a/game/StarWorldClient.cpp	2026-10-04 20:45:51.409919428 -0700
++++ b/game/StarWorldClient.cpp	2026-10-05 02:16:02.918427669 -0700
+@@ -1708,7 +1708,7 @@
+       m_lightingCalculator.setCellIndex(baseIndex + y, light, !tile.foregroundLightTransparent);
+     }
+   });
+-  LogMap::set("client_render_world_async_light_gather", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
++  LogMap::set("client_render_world_async_light_gather", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
+ }
+ 
+ void WorldClient::lightingCalc() {
+@@ -1770,7 +1770,7 @@
+ 
+     int64_t start = Time::monotonicMicroseconds();
+     lightingCalc();
+-    LogMap::set("client_render_world_async_light_calc", strf(u8"{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
++    LogMap::set("client_render_world_async_light_calc", strf("{:05d}\u00b5s", Time::monotonicMicroseconds() - start));
+   }
+ }
+ 
